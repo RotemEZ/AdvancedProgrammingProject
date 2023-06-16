@@ -1,0 +1,1027 @@
+---
+title: "APProject"
+output: html_document
+date: "2023-06-10"
+---
+
+```{r load-packages, message = FALSE}
+library(tinytex)
+library(knitr)
+library(tidyverse)
+library(broom)
+library(htmltools)
+library(glmnet)
+library(dplyr)
+library(caret)
+library(stats)
+library(haven)
+```
+
+
+```{r}
+
+data <- # Replace this comment with the function "read_sav()" and place the path of the sav file.
+
+data <- subset(data ,T2_assess == "1" & T3_assess == "1") 
+
+data <- select(data,ID,T3gender, T3marital_status, T3children_no, T3education_level, T3education_courses, T3army, T3army_fullservice, T3civil_service, T3civilserv_full, T3_15.230_2, T3_15.230_3, T3_15.340, T3_life_satisfaction_1, T3_life_satisfaction_2, T3_life_satisfaction_3, T3_life_satisfaction_4, T3_life_satisfaction_6, T3_future_expect_1, T3_future_expect_2, T3_future_expect_3, T3_future_expect_6, T3_future_expect_8, T3_future_expect_9, T3_future_expect_10, T3_future_expect_11, T3_skills_4, T3_skills_12, T3_skills_13, T3_skills_14, T3_skills_15, B.LIFE.SKILLS.ALL_4, B.LIFE.SKILLS.ALL_12, B.LIFE.SKILLS.ALL_13, B.LIFE.SKILLS.ALL_14, B.LIFE.SKILLS.ALL_15, B.OPTIMI, B.FUTURE.EXPECT.ALL_1, B.FUTURE.EXPECT.ALL_2, B.FUTURE.EXPECT.ALL_3, B.FUTURE.EXPECT.ALL_6, B.FUTURE.EXPECT.ALL_8, B.FUTURE.EXPECT.ALL_9, B.FUTURE.EXPECT.ALL_10, B.FUTURE.EXPECT.ALL_11, B.LIFE.SATISFACTION_1, B.LIFE.SATISFACTION_2, B.LIFE.SATISFACTION_3, B.LIFE.SATISFACTION_4, B.LIFE.SATISFACTION_6)
+
+# Creating raw_data for mean's calculations
+raw_data <- data 
+
+# Replacing null values with zeros
+data[is.na(data)] <- 0
+
+# Creating csv file
+write.csv(data, file = "C:/Users/rotem/Downloads/output.csv" , row.names = FALSE)
+data <- read.csv("C:/Users/rotem/Downloads/output.csv")
+```
+
+```{r}
+# Train-test split
+set.seed(123)
+ind <- sample(2, nrow(data), replace = T, prob = c(0.7, 0.3))
+train <- data[ind==1,]
+test <- data[ind==2,]
+```
+
+```{r}
+# Use repeated cross-validation to tune hyperparameters
+custom <- trainControl(method = "repeatedcv", 
+                       number = 10,
+                       repeats = 5,
+                       verboseIter = TRUE)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars1 <- c("T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_future_expect_10", "T3_future_expect_11", "T3_skills_4", "T3_skills_12", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars1 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars1 <- c(response_vars1, personal_vars1)
+
+# Subset the training data by excluding the response and personal variables
+train_subset1 <- train[, !(names(train) %in% exclude_vars1)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net1 <- train(T3_life_satisfaction_2 ~ .,
+               data = train_subset1,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net1, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+      xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+
+```
+
+
+
+
+```{r}
+
+
+mean_LF2_T2 <- mean(raw_data$B.LIFE.SATISFACTION_2, na.rm = TRUE)
+mean_LF2_T3 <- mean(raw_data$T3_life_satisfaction_2, na.rm = TRUE)
+
+cat("Mean of life satisfaction in T2:", mean_LF2_T2, "\n")
+cat("Mean of life satisfaction in T3:", mean_LF2_T3, "\n")
+
+
+```
+
+```{r}
+test_subset1 <- test[, !(names(test) %in% exclude_vars1)]
+
+test_x <- as.matrix(test_subset1)
+# Fit the glmnet model with the subsetted data
+elastic_net1_model <- glmnet(x = train_subset1, y = train$T3_life_satisfaction_2, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net1_model, newx = test_x, newy = test$T3_life_satisfaction_2)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars2 <- c("T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_future_expect_10", "T3_life_satisfaction_2", "T3_skills_4", "T3_skills_12", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars2 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars2 <- c(response_vars2, personal_vars2)
+
+# Subset the training data by excluding the response and personal variables
+train_subset2 <- train[, !(names(train) %in% exclude_vars2)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net2 <- train(T3_future_expect_11 ~ .,
+               data = train_subset2,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net2, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+      xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+
+```
+
+```{r}
+
+
+mean_FE11_T2 <- mean(raw_data$B.FUTURE.EXPECT.ALL_11, na.rm = TRUE)
+mean_FE11_T3 <- mean(raw_data$T3_future_expect_11, na.rm = TRUE)
+
+cat("Mean of future expectations in T2:", mean_FE11_T2, "\n")
+cat("Mean of future expectations in T3:", mean_FE11_T3, "\n")
+
+```
+
+```{r}
+test_subset2 <- test[, !(names(test) %in% exclude_vars2)]
+
+test_x <- as.matrix(test_subset2)
+# Fit the glmnet model with the subsetted data
+elastic_net2_model <- glmnet(x = train_subset2, y = train$T3_future_expect_11, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net2_model, newx = test_x, newy = test$T3_future_expect_11)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars3 <- c("T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_future_expect_10", "T3_life_satisfaction_2", "T3_skills_4", "T3_future_expect_11", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars3 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars3 <- c(response_vars3, personal_vars3)
+
+# Subset the training data by excluding the response and personal variables
+train_subset3 <- train[, !(names(train) %in% exclude_vars3)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net3 <- train(T3_skills_12 ~ .,
+               data = train_subset3,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net3, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+
+```
+
+```{r}
+mean_LS12_T2 <- mean(raw_data$B.LIFE.SKILLS.ALL_12, na.rm = TRUE)
+mean_LS12_T3 <- mean(raw_data$T3_skills_12, na.rm = TRUE)
+
+cat("Mean of life's skills in T2:", mean_LS12_T2, "\n")
+cat("Mean of life's skills in T3:", mean_LS12_T3, "\n")
+```
+
+```{r}
+test_subset3 <- test[, !(names(test) %in% exclude_vars3)]
+
+test_x <- as.matrix(test_subset3)
+# Fit the glmnet model with the subsetted data
+elastic_net3_model <- glmnet(x = train_subset3, y = train$T3_skills_12, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net3_model, newx = test_x, newy = test$T3_skills_12)
+```
+
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars5 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_future_expect_10", "T3_life_satisfaction_2", "T3_skills_4", "T3_future_expect_11", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars5 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars5 <- c(response_vars5, personal_vars5)
+
+# Subset the training data by excluding the response and personal variables
+train_subset5 <- train[, !(names(train) %in% exclude_vars5)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net5 <- train(T3_life_satisfaction_4 ~ .,
+               data = train_subset5,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net5, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+mean_LF4_T2 <- mean(raw_data$B.LIFE.SATISFACTION_4, na.rm = TRUE)
+mean_LF4_T3 <- mean(raw_data$T3_life_satisfaction_4, na.rm = TRUE)
+
+cat("Mean of life satisfaction in T2:", mean_LF4_T2, "\n")
+cat("Mean of life satisfaction in T3:", mean_LF4_T3, "\n")
+```
+
+```{r}
+test_subset5 <- test[, !(names(test) %in% exclude_vars5)]
+
+test_x <- as.matrix(test_subset5)
+# Fit the glmnet model with the subsetted data
+elastic_net5_model <- glmnet(x = train_subset5, y = train$T3_life_satisfaction_4, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net5_model, newx = test_x, newy = test$T3_life_satisfaction_4)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars6 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_future_expect_10", "T3_life_satisfaction_2", "T3_skills_4", "T3_future_expect_11", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars6 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars6 <- c(response_vars6, personal_vars6)
+
+# Subset the training data by excluding the response and personal variables
+train_subset6<- train[, !(names(train) %in% exclude_vars6)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net6 <- train(T3_life_satisfaction_3 ~ .,
+               data = train_subset6,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net6, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+
+```{r}
+mean_LF3_T2 <- mean(raw_data$B.LIFE.SATISFACTION_3, na.rm = TRUE)
+mean_LF3_T3 <- mean(raw_data$T3_life_satisfaction_3, na.rm = TRUE)
+
+cat("Mean of life satisfaction in T2:", mean_LF3_T2, "\n")
+cat("Mean of life satisfaction in T3:", mean_LF3_T3, "\n")
+```
+
+```{r}
+test_subset6 <- test[, !(names(test) %in% exclude_vars6)]
+
+test_x <- as.matrix(test_subset6)
+# Fit the glmnet model with the subsetted data
+elastic_net6_model <- glmnet(x = train_subset6, y = train$T3_life_satisfaction_3, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net6_model, newx = test_x, newy = test$T3_life_satisfaction_3)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars7 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_future_expect_10", "T3_life_satisfaction_2", "T3_skills_4", "T3_future_expect_11", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars7 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars7 <- c(response_vars7, personal_vars7)
+
+# Subset the training data by excluding the response and personal variables
+train_subset7 <- train[, !(names(train) %in% exclude_vars7)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net7 <- train(T3_life_satisfaction_1 ~ .,
+               data = train_subset7,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net7, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+mean_LF1_T2 <- mean(raw_data$B.LIFE.SATISFACTION_1, na.rm = TRUE)
+mean_LF1_T3 <- mean(raw_data$T3_life_satisfaction_1, na.rm = TRUE)
+
+cat("Mean of life satisfaction in T2:", mean_LF1_T2, "\n")
+cat("Mean of life satisfaction in T3:", mean_LF1_T3, "\n")
+```
+
+```{r}
+test_subset7 <- test[, !(names(test) %in% exclude_vars7)]
+
+test_x <- as.matrix(test_subset7)
+# Fit the glmnet model with the subsetted data
+elastic_net7_model <- glmnet(x = train_subset7, y = train$T3_life_satisfaction_1, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net7_model, newx = test_x, newy = test$T3_life_satisfaction_1)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars8 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_future_expect_10", "T3_life_satisfaction_2", "T3_skills_4", "T3_future_expect_11", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars8 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars8 <- c(response_vars8, personal_vars8)
+
+# Subset the training data by excluding the response and personal variables
+train_subset8 <- train[, !(names(train) %in% exclude_vars8)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net8 <- train(T3_life_satisfaction_6 ~ .,
+               data = train_subset8,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net8, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+mean_LF6_T2 <- mean(raw_data$B.LIFE.SATISFACTION_6, na.rm = TRUE)
+mean_LF6_T3 <- mean(raw_data$T3_life_satisfaction_6, na.rm = TRUE)
+
+cat("Mean of life satisfaction in T2:", mean_LF6_T2, "\n")
+cat("Mean of life satisfaction in T3:", mean_LF6_T3, "\n")
+```
+
+
+```{r}
+test_subset8 <- test[, !(names(test) %in% exclude_vars8)]
+
+test_x <- as.matrix(test_subset8)
+# Fit the glmnet model with the subsetted data
+elastic_net8_model <- glmnet(x = train_subset8, y = train$T3_life_satisfaction_6, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net8_model, newx = test_x, newy = test$T3_life_satisfaction_6)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars9 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_future_expect_10", "T3_life_satisfaction_2", "T3_skills_4", "T3_future_expect_11", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars9 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars9 <- c(response_vars9, personal_vars9)
+
+# Subset the training data by excluding the response and personal variables
+train_subset9 <- train[, !(names(train) %in% exclude_vars9)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net9 <- train(T3_future_expect_1 ~ .,
+               data = train_subset9,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net9, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+mean_FE1_T2 <- mean(raw_data$B.FUTURE.EXPECT.ALL_1, na.rm = TRUE)
+mean_FE1_T3 <- mean(raw_data$T3_future_expect_1, na.rm = TRUE)
+
+cat("Mean of future expectations in T2:", mean_FE1_T2, "\n")
+cat("Mean of future expectations in T3:", mean_FE1_T3, "\n")
+```
+
+```{r}
+test_subset9 <- test[, !(names(test) %in% exclude_vars9)]
+
+test_x <- as.matrix(test_subset9)
+# Fit the glmnet model with the subsetted data
+elastic_net9_model <- glmnet(x = train_subset9, y = train$T3_future_expect_1, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net9_model, newx = test_x, newy = test$T3_future_expect_1)
+```
+
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars10 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_future_expect_10", "T3_life_satisfaction_2", "T3_skills_4", "T3_future_expect_11", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars10 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars10 <- c(response_vars10, personal_vars10)
+
+# Subset the training data by excluding the response and personal variables
+train_subset10 <- train[, !(names(train) %in% exclude_vars10)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net10 <- train(T3_future_expect_2 ~ .,
+               data = train_subset10,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net10, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+mean_FE2_T2 <- mean(raw_data$B.FUTURE.EXPECT.ALL_2, na.rm = TRUE)
+mean_FE2_T3 <- mean(raw_data$T3_future_expect_2, na.rm = TRUE)
+
+cat("Mean of future expectations in T2:", mean_FE2_T2, "\n")
+cat("Mean of future expectations in T3:", mean_FE2_T3, "\n")
+```
+
+```{r}
+test_subset10 <- test[, !(names(test) %in% exclude_vars10)]
+
+test_x <- as.matrix(test_subset10)
+# Fit the glmnet model with the subsetted data
+elastic_net10_model <- glmnet(x = train_subset10, y = train$T3_future_expect_2, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net10_model, newx = test_x, newy = test$T3_future_expect_2)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars11 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_future_expect_10", "T3_life_satisfaction_2", "T3_skills_4", "T3_future_expect_11", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars11 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars11 <- c(response_vars11, personal_vars11)
+
+# Subset the training data by excluding the response and personal variables
+train_subset11 <- train[, !(names(train) %in% exclude_vars11)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net11 <- train(T3_future_expect_3 ~ .,
+               data = train_subset11,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net11, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+mean_FE3_T2 <- mean(raw_data$B.FUTURE.EXPECT.ALL_3, na.rm = TRUE)
+mean_FE3_T3 <- mean(raw_data$T3_future_expect_3, na.rm = TRUE)
+
+cat("Mean of future expectations in T2:", mean_FE3_T2, "\n")
+cat("Mean of future expectations in T3:", mean_FE3_T3, "\n")
+```
+
+```{r}
+test_subset11 <- test[, !(names(test) %in% exclude_vars11)]
+
+test_x <- as.matrix(test_subset11)
+# Fit the glmnet model with the subsetted data
+elastic_net11_model <- glmnet(x = train_subset11, y = train$T3_future_expect_3, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net11_model, newx = test_x, newy = test$T3_future_expect_3)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars12 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_8", "T3_future_expect_9", "T3_future_expect_10", "T3_life_satisfaction_2", "T3_skills_4", "T3_future_expect_11", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars12 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars12 <- c(response_vars12, personal_vars12)
+
+# Subset the training data by excluding the response and personal variables
+train_subset12 <- train[, !(names(train) %in% exclude_vars12)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net12 <- train(T3_future_expect_6 ~ .,
+               data = train_subset12,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net12, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+mean_FE6_T2 <- mean(raw_data$B.FUTURE.EXPECT.ALL_6, na.rm = TRUE)
+mean_FE6_T3 <- mean(raw_data$T3_future_expect_6, na.rm = TRUE)
+
+cat("Mean of future expectations in T2:", mean_FE6_T2, "\n")
+cat("Mean of future expectations in T3:", mean_FE6_T3, "\n")
+```
+
+```{r}
+test_subset12 <- test[, !(names(test) %in% exclude_vars12)]
+
+test_x <- as.matrix(test_subset12)
+# Fit the glmnet model with the subsetted data
+elastic_net12_model <- glmnet(x = train_subset12, y = train$T3_future_expect_6, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net12_model, newx = test_x, newy = test$T3_future_expect_6)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars13 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_9", "T3_future_expect_10", "T3_life_satisfaction_2", "T3_skills_4", "T3_future_expect_11", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars13 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars13 <- c(response_vars13, personal_vars13)
+
+# Subset the training data by excluding the response and personal variables
+train_subset13 <- train[, !(names(train) %in% exclude_vars13)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net13 <- train(T3_future_expect_8 ~ .,
+               data = train_subset13,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net13, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+
+mean_FE8_T2 <- mean(raw_data$B.FUTURE.EXPECT.ALL_8, na.rm = TRUE)
+mean_FE8_T3 <- mean(raw_data$T3_future_expect_8, na.rm = TRUE)
+
+cat("Mean of future expectations in T2:", mean_FE8_T2, "\n")
+cat("Mean of future expectations in T3:", mean_FE8_T3, "\n")
+```
+
+```{r}
+test_subset13 <- test[, !(names(test) %in% exclude_vars13)]
+
+test_x <- as.matrix(test_subset13)
+# Fit the glmnet model with the subsetted data
+elastic_net13_model <- glmnet(x = train_subset13, y = train$T3_future_expect_8, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net13_model, newx = test_x, newy = test$T3_future_expect_8)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars14 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_10", "T3_life_satisfaction_2", "T3_skills_4", "T3_future_expect_11", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars14 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars14 <- c(response_vars14, personal_vars14)
+
+# Subset the training data by excluding the response and personal variables
+train_subset14 <- train[, !(names(train) %in% exclude_vars14)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net14 <- train(T3_future_expect_9 ~ .,
+               data = train_subset14,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net14, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+mean_FE9_T2 <- mean(raw_data$B.FUTURE.EXPECT.ALL_9, na.rm = TRUE)
+mean_FE9_T3 <- mean(raw_data$T3_future_expect_9, na.rm = TRUE)
+
+cat("Mean of future expectations in T2:", mean_FE9_T2, "\n")
+cat("Mean of future expectations in T3:", mean_FE9_T3, "\n")
+```
+
+```{r}
+test_subset14 <- test[, !(names(test) %in% exclude_vars14)]
+
+test_x <- as.matrix(test_subset14)
+# Fit the glmnet model with the subsetted data
+elastic_net14_model <- glmnet(x = train_subset14, y = train$T3_future_expect_9, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net14_model, newx = test_x, newy = test$T3_future_expect_9)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars15 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_life_satisfaction_2", "T3_skills_4", "T3_future_expect_11", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars15 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars15 <- c(response_vars15, personal_vars15)
+
+# Subset the training data by excluding the response and personal variables
+train_subset15 <- train[, !(names(train) %in% exclude_vars15)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net15 <- train(T3_future_expect_10 ~ .,
+               data = train_subset15,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net15, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+mean_FE10_T2 <- mean(raw_data$B.FUTURE.EXPECT.ALL_10, na.rm = TRUE)
+mean_FE10_T3 <- mean(raw_data$T3_future_expect_10, na.rm = TRUE)
+
+cat("Mean of future expectations in T2:", mean_FE10_T2, "\n")
+cat("Mean of future expectations in T3:", mean_FE10_T3, "\n")
+```
+
+```{r}
+test_subset15 <- test[, !(names(test) %in% exclude_vars15)]
+
+test_x <- as.matrix(test_subset15)
+# Fit the glmnet model with the subsetted data
+elastic_net15_model <- glmnet(x = train_subset15, y = train$T3_future_expect_10, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net15_model, newx = test_x, newy = test$T3_future_expect_10)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars16 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_life_satisfaction_2", "T3_future_expect_10", "T3_future_expect_11", "T3_skills_13", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars16 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars16 <- c(response_vars16, personal_vars16)
+
+# Subset the training data by excluding the response and personal variables
+train_subset16 <- train[, !(names(train) %in% exclude_vars16)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net16 <- train(T3_skills_4 ~ .,
+               data = train_subset16,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net16, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+mean_LS4_T2 <- mean(raw_data$B.LIFE.SKILLS.ALL_4, na.rm = TRUE)
+mean_LS4_T3 <- mean(raw_data$T3_skills_4, na.rm = TRUE)
+
+cat("Mean of life's skills in T2:", mean_LS4_T2, "\n")
+cat("Mean of life's skills in T3:", mean_LS4_T3, "\n")
+```
+
+```{r}
+test_subset16 <- test[, !(names(test) %in% exclude_vars16)]
+
+test_x <- as.matrix(test_subset16)
+# Fit the glmnet model with the subsetted data
+elastic_net16_model <- glmnet(x = train_subset16, y = train$T3_skills_4, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net16_model, newx = test_x, newy = test$T3_skills_4)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars17 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_life_satisfaction_2", "T3_future_expect_10", "T3_future_expect_11", "T3_skills_4", "T3_skills_14", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars17 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars17 <- c(response_vars17, personal_vars17)
+
+# Subset the training data by excluding the response and personal variables
+train_subset17 <- train[, !(names(train) %in% exclude_vars17)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net17 <- train(T3_skills_13 ~ .,
+               data = train_subset17,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net17, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+mean_LS13_T2 <- mean(raw_data$B.LIFE.SKILLS.ALL_13, na.rm = TRUE)
+mean_LS13_T3 <- mean(raw_data$T3_skills_13, na.rm = TRUE)
+
+cat("Mean of life's skills in T2:", mean_LS13_T2, "\n")
+cat("Mean of life's skills in T3:", mean_LS13_T3, "\n")
+```
+
+```{r}
+test_subset17 <- test[, !(names(test) %in% exclude_vars17)]
+
+test_x <- as.matrix(test_subset17)
+# Fit the glmnet model with the subsetted data
+elastic_net17_model <- glmnet(x = train_subset17, y = train$T3_skills_13, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net17_model, newx = test_x, newy = test$T3_skills_13)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars18 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_life_satisfaction_2", "T3_future_expect_10", "T3_future_expect_11", "T3_skills_4", "T3_skills_13", "T3_skills_15")
+
+# Create a list of personal variables
+personal_vars18 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars18 <- c(response_vars18, personal_vars18)
+
+# Subset the training data by excluding the response and personal variables
+train_subset18 <- train[, !(names(train) %in% exclude_vars18)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net18 <- train(T3_skills_14 ~ .,
+               data = train_subset18,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net18, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+mean_LS14_T2 <- mean(raw_data$B.LIFE.SKILLS.ALL_14, na.rm = TRUE)
+mean_LS14_T3 <- mean(raw_data$T3_skills_14, na.rm = TRUE)
+
+cat("Mean of life's skills in T2:", mean_LS14_T2, "\n")
+cat("Mean of life's skills in T3:", mean_LS14_T3, "\n")
+```
+
+```{r}
+test_subset18 <- test[, !(names(test) %in% exclude_vars18)]
+
+test_x <- as.matrix(test_subset18)
+# Fit the glmnet model with the subsetted data
+elastic_net18_model <- glmnet(x = train_subset18, y = train$T3_skills_14, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net18_model, newx = test_x, newy = test$T3_skills_14)
+```
+
+
+```{r}
+set.seed(123)
+# Specify the predictor variables and response variables
+response_vars19 <- c("T3_skills_12", "T3_15.340", "T3_life_satisfaction_4", "T3_life_satisfaction_3", "T3_life_satisfaction_1", "T3_life_satisfaction_6", "T3_future_expect_1", "T3_future_expect_2", "T3_future_expect_3", "T3_future_expect_6", "T3_future_expect_8", "T3_future_expect_9", "T3_life_satisfaction_2", "T3_future_expect_10", "T3_future_expect_11", "T3_skills_4", "T3_skills_13", "T3_skills_14")
+
+# Create a list of personal variables
+personal_vars19 <- c("ID", "T1_assess", "T2_assess", "T3_assess")
+
+# Combine the lists of response and personal variables
+exclude_vars19 <- c(response_vars19, personal_vars19)
+
+# Subset the training data by excluding the response and personal variables
+train_subset19 <- train[, !(names(train) %in% exclude_vars19)]
+
+# Fit the glmnet model with the subsetted data
+elastic_net19 <- train(T3_skills_15 ~ .,
+               data = train_subset19,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = seq(0, 1, length = 10),
+                                      lambda = seq(0.0001, 1, length = 5)),
+               trControl = custom)
+
+# Plot variable importance
+plot(varImp(elastic_net19, scale = FALSE),
+     main = "Variable Importance Plot",  # Add a title to the plot
+     xlab = "Importance",  # Label for the x-axis
+     ylab = "Variables",  # Label for the y-axis
+     col = "blue",  # Change the color of the bars to blue
+     las = 45,  # Rotate x-axis labels vertically
+     cex.names = 0.8,  # Reduce the size of x-axis labels
+     xlim = c(0, 1))  # Set the x-axis limits
+```
+
+```{r}
+mean_LS15_T2 <- mean(raw_data$B.LIFE.SKILLS.ALL_15, na.rm = TRUE)
+mean_LS15_T3 <- mean(raw_data$T3_skills_15, na.rm = TRUE)
+
+cat("Mean of life's skills in T2:", mean_LS15_T2, "\n")
+cat("Mean of life's skills in T3:", mean_LS15_T3, "\n")
+```
+
+```{r}
+test_subset19 <- test[, !(names(test) %in% exclude_vars19)]
+
+test_x <- as.matrix(test_subset19)
+# Fit the glmnet model with the subsetted data
+elastic_net19_model <- glmnet(x = train_subset19, y = train$T3_skills_15, alpha = 0.667, lambda = 1e-04)
+
+#Assess the model's performance on the test data
+assess.glmnet(elastic_net19_model, newx = test_x, newy = test$T3_skills_15)
+```
+
