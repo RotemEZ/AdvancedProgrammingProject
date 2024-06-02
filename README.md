@@ -1,11 +1,12 @@
 # Advanced Programming Project
-
-For running the the code with the dataset, you'll need to download the sav 
-file from the drive to your computer. Then, go to the code repository.
-Go to where we firstly declare the variable "data", place the path of the
-file in the function "read_sav()" and run the code(there is instructions in
-the code).
-
+## About The Project
+The main goal of this project is to analyze and explore the factors influencing the change in 
+the self-perception and goals of youth at risk throughout different periods of life. This 
+analysis can provide insights into the experiences and challenges faced by youth at risk and 
+help develop interventions or support systems to positively influence their self-perception 
+and goals. Those interventions and support systems could promote positive development 
+and improve youth at risk overall well-being.
+## About The Dataset
 This dataset includes a range of variables that were carefully selected to capture important
 psychological characteristics of the individuals being studied. The psychological variables include 
 measures of life satisfaction, depression, ability to deal with problems, and future expectations. 
@@ -196,6 +197,11 @@ B.LIFE.SATISFACTION_4-I wish I had a different kind of life, numeric(1- never, 2
 B.LIFE.SATISFACTION_6 - I have everything I want in life, numeric(1- never, 2- sometimes, 3- usually, 
 4- almost always)
 
-
+## How to Run
+For running the the code with the dataset, you'll need to download the sav 
+file from the drive to your computer. Then, go to the code repository.
+Go to where we firstly declare the variable "data", place the path of the
+file in the function "read_sav()" and run the code(there is instructions in
+the code).
 
 
