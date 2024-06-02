@@ -1,4 +1,4 @@
-# Team-15-Project
+# Advanced Programming Project
 
 For running the the code with the dataset, you'll need to download the sav 
 file from the drive to your computer. Then, go to the code repository.
